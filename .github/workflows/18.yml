@@ -1,8 +1,8 @@
-name: weekly 18 Video Link Checker
+name: weekly Video Link Checker
 
 on:
   schedule:
-    # 每天 UTC 时间 每周日 02:00 运行
+    # 每星期日 UTC 时间 02:00 运行
     - cron: '0 2 * * 0'
   workflow_dispatch:
     # 允许手动触发
@@ -29,42 +29,44 @@ jobs:
         run: |
           node <<'EOF'
           const fs = require('fs');
-          const fetch = require('node-fetch');
-
-          const sources = [
-            'https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u'
-            // 添加其他需要抓取的 .txt 或 .m3u 文件链接 用','分隔每一行的链接
-            
-            
-          ];
-          let allLinks = new Set();
           
-          async function fetchLinks(url) {
-            try {
-              const response = await fetch(url);
-              if (!response.ok) {
-                console.error(`Error fetching ${url}: ${response.statusText}`);
+          async function main() {
+            const fetch = (await import('node-fetch')).default;
+
+            const sources = [
+              'https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u',
+              // 添加其他需要抓取的 .txt 或 .m3u 文件链接
+              'https://example.com/other_list.m3u',
+              'https://example.com/another_list.txt'
+            ];
+            let allLinks = new Set();
+            
+            async function fetchLinks(url) {
+              try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                  console.error(`Error fetching ${url}: ${response.statusText}`);
+                  return [];
+                }
+                const text = await response.text();
+                const links = text.match(/(https?:\/\/[^\s]+\.(m3u8|mp4))/g) || [];
+                return links;
+              } catch (error) {
+                console.error(`Fetch error for ${url}:`, error);
                 return [];
               }
-              const text = await response.text();
-              const links = text.match(/(https?:\/\/[^\s]+\.(m3u8|mp4))/g) || [];
-              return links;
-            } catch (error) {
-              console.error(`Fetch error for ${url}:`, error);
-              return [];
             }
-          }
 
-          async function checkLink(url) {
-            try {
-              const response = await fetch(url, { method: 'HEAD', timeout: 5000 }); // 使用 HEAD 请求并设置超时
-              return response.ok;
-            } catch (error) {
-              return false;
+            async function checkLink(url) {
+              try {
+                // 使用 HEAD 请求并设置超时，效率更高
+                const response = await fetch(url, { method: 'HEAD', timeout: 5000 });
+                return response.ok;
+              } catch (error) {
+                return false;
+              }
             }
-          }
 
-          async function main() {
             for (const url of sources) {
               const links = await fetchLinks(url);
               for (const link of links) {
@@ -101,6 +103,6 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add 18.m3u
+          git add valid_links.m3u
           git commit -m "chore: Update valid video links" || echo "No changes to commit"
           git push
