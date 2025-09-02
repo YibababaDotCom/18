@@ -36,8 +36,8 @@ jobs:
             const sources = [
               'https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u',
               // 添加其他需要抓取的 .txt 或 .m3u 文件链接
-              'https://example.com/other_list.m3u',
-              'https://example.com/another_list.txt'
+              
+              
             ];
             let allLinks = new Set();
             
@@ -103,6 +103,6 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add valid_links.m3u
+          git add 18.m3u
           git commit -m "chore: Update valid video links" || echo "No changes to commit"
           git push
