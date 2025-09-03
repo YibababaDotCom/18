@@ -6,11 +6,11 @@ on:
     - cron: '0 2 * * 0'
   workflow_dispatch:
     # 允许手动触发
-    
+
 # 赋予 workflow 写入权限
 permissions:
   contents: write
-  
+
 jobs:
   check_links:
     runs-on: ubuntu-latest
@@ -25,90 +25,87 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: |
-          npm install node-fetch
+        run: npm install node-fetch
 
       - name: Fetch and process links
-  id: process_links
-  run: |
-    node <<'EOF'
-    const fs = require('fs');
-    
-    async function main() {
-      const fetch = (await import('node-fetch')).default;
-
-      const sources = [
-        'https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u'
-        // 添加其他需要抓取的 .txt 或 .m3u 文件链接 用逗号分隔每一行链接 放在链接尾
-        
-        
-      ];
-      
-      let allVideos = new Map(); // 使用Map来存储唯一的视频名称和链接
-      
-      async function fetchVideos(url) {
-        try {
-          const response = await fetch(url);
-          if (!response.ok) {
-            console.error(`Error fetching ${url}: ${response.statusText}`);
-            return [];
-          }
-          const text = await response.text();
-          // 使用更宽泛的匹配来提取名称和链接对
-          const matches = text.matchAll(/#EXTINF:-1,(.+)\n(https?:\/\/[^\s]+\.(m3u8|mp4))/g);
+        id: process_links
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
           
-          let videos = [];
-          for (const match of matches) {
-              const name = match[1];
-              const link = match[2];
-              videos.push({ name, link });
+          async function main() {
+            const fetch = (await import('node-fetch')).default;
+
+            const sources = [
+              'https://raw.githubusercontent.com/zeee-u/lzh06/main/fl.m3u'
+              // 添加其他需要抓取的 .txt 或 .m3u 文件链接 用逗号分隔每一行链接 放在链接尾
+            ];
+            
+            let allVideos = new Map(); // 使用Map来存储唯一的视频名称和链接
+            
+            async function fetchVideos(url) {
+              try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                  console.error(`Error fetching ${url}: ${response.statusText}`);
+                  return [];
+                }
+                const text = await response.text();
+                // 使用更宽泛的匹配来提取名称和链接对
+                const matches = text.matchAll(/#EXTINF:-1,(.+)\n(https?:\/\/[^\s]+\.(m3u8|mp4))/g);
+                
+                let videos = [];
+                for (const match of matches) {
+                    const name = match[1];
+                    const link = match[2];
+                    videos.push({ name, link });
+                }
+                return videos;
+              } catch (error) {
+                console.error(`Fetch error for ${url}:`, error);
+                return [];
+              }
+            }
+
+            async function checkLink(url) {
+              try {
+                const response = await fetch(url, { method: 'HEAD', timeout: 5000 });
+                return response.ok;
+              } catch (error) {
+                return false;
+              }
+            }
+
+            for (const url of sources) {
+              const videos = await fetchVideos(url);
+              for (const video of videos) {
+                  allVideos.set(video.link, video.name); // 以链接为键，确保唯一性
+              }
+            }
+
+            let validVideos = [];
+            for (const [link, name] of allVideos) {
+                console.log(`Testing: ${name}`);
+                if (await checkLink(link)) {
+                    validVideos.push({ name, link });
+                    console.log('✅ OK');
+                } else {
+                    console.log('❌ Failed');
+                }
+            }
+            
+            let outputContent = '#EXTM3U\n';
+            validVideos.forEach(video => {
+                outputContent += `#EXTINF:-1,${video.name}\n`;
+                outputContent += `${video.link}\n`;
+            });
+            
+            fs.writeFileSync('18.m3u', outputContent);
+            console.log('Successfully created 18.m3u with valid links.');
           }
-          return videos;
-        } catch (error) {
-          console.error(`Fetch error for ${url}:`, error);
-          return [];
-        }
-      }
 
-      async function checkLink(url) {
-        try {
-          const response = await fetch(url, { method: 'HEAD', timeout: 5000 });
-          return response.ok;
-        } catch (error) {
-          return false;
-        }
-      }
-
-      for (const url of sources) {
-        const videos = await fetchVideos(url);
-        for (const video of videos) {
-            allVideos.set(video.link, video.name); // 以链接为键，确保唯一性
-        }
-      }
-
-      let validVideos = [];
-      for (const [link, name] of allVideos) {
-          console.log(`Testing: ${name}`);
-          if (await checkLink(link)) {
-              validVideos.push({ name, link });
-              console.log('✅ OK');
-          } else {
-              console.log('❌ Failed');
-          }
-      }
-      
-      let outputContent = '#EXTM3U\n';
-      validVideos.forEach(video => {
-          outputContent += `#EXTINF:-1,${video.name}\n`;
-          outputContent += `${video.link}\n`;
-      });
-      
-      fs.writeFileSync('18.m3u', outputContent);
-      console.log('Successfully created 18.m3u with valid links.');
-    }
-
-    main();
-    EOF
+          main();
+          EOF
       
       - name: Commit and push changes
         run: |
